@@ -1,0 +1,5 @@
+{
+    "arduino.disableTestingOpen": true,
+    "C_Cpp.intelliSenseEngine": "Tag Parser",
+    "C_Cpp.intelliSenseEngineFallback": "Disabled"
+}

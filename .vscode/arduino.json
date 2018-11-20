@@ -1,0 +1,6 @@
+{
+    "sketch": "MacroLogic.ino",
+    "board": "arduino:sam:arduino_due_x",
+    "port": "COM4",
+    "output": "../ArduinoBuild"
+}
