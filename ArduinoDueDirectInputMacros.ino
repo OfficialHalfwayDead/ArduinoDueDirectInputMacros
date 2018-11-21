@@ -1,109 +1,14 @@
 #include <Joystick.h>
 #include <LiquidCrystal.h>
 #include <math.h>
-#include <ArduinoSTL.h>
 #include <DueTimer.h>
 #include <random>
+#include "DataStructure.h"
+#include "BasicActions.h"
 
 
 LiquidCrystal lcd(6, 7, 8, 9, 10, 11);
 volatile byte task = 0b00000000;
-
-
-struct ButtonAction
-{
-	uint8_t button;
-	uint8_t state;
-};
-
-struct AxisAction
-{
-	char name;
-	int16_t position;
-};
-
-struct MacroAction
-{
-private:
-	int delay;
-	std::vector<ButtonAction> bt_actions;
-	std::vector<AxisAction> ax_actions;
-public:
-	MacroAction(int delay);
-	int get_delay();
-	void press(uint8_t button);
-	void release(uint8_t button);
-	void move(char axis, float position);
-	std::vector<ButtonAction> get_bt_actions();
-	std::vector<AxisAction> get_ax_actions();
-
-};
-
-MacroAction::MacroAction(int delay)
-{
-	this->delay = delay;
-}
-
-int MacroAction::get_delay()
-{
-	return delay;
-}
-
-void MacroAction::press(uint8_t button)
-{
-	bt_actions.push_back({ button,1 });
-}
-
-void MacroAction::release(uint8_t button)
-{
-	bt_actions.push_back({ button,0 });
-}
-
-void MacroAction::move(char axis, float position)
-{
-	char action_axis;
-	if (axis == 'X' || axis == 'x')
-	{
-		action_axis = 'X';
-	}
-	else if (axis == 'Y' || axis == 'y')
-	{
-		action_axis = 'Y';
-	}
-	else if (axis == 'Z' || axis == 'z')
-	{
-		action_axis = 'Z';
-	}
-	else if (axis == 'R' || axis == 'r')
-	{
-		action_axis = 'R';
-	}
-	else
-	{
-		lcd.setCursor(0, 1);
-		lcd.print("err in axis def");
-		SerialUSB.print("Command tries to move non-existing axis: ");
-		SerialUSB.println(axis);
-		return;
-	}
-
-	position = fminf(1.0f, position);
-	position = fmaxf(-1.0f, position);
-	int16_t scaled_pos = (int16_t)((position + 1.0f) * 511.5f);
-	ax_actions.push_back({ action_axis,scaled_pos });
-}
-
-std::vector<ButtonAction> MacroAction::get_bt_actions()
-{
-	return bt_actions;
-}
-
-std::vector<AxisAction> MacroAction::get_ax_actions()
-{
-	return ax_actions;
-}
-
-
 
 
 Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID, JOYSTICK_TYPE_GAMEPAD,
@@ -251,8 +156,6 @@ void read_command()
 		}
 		current = (current + 1) % 2;
 	}
-
-
 }
 
 void check_if_done()
@@ -353,23 +256,55 @@ void queue_actions()
 
 	if (strcasecmp(command, "Button1") == 0 || strcasecmp(command, "Button 1") == 0 || strcasecmp(command, "Jump") == 0)
 	{
-		// call button1 queue
+		Macros::BasicActions::QButton1(action_queue);
 	}
 	else if (strcasecmp(command, "Button2") == 0 || strcasecmp(command, "Button 2") == 0 || strcasecmp(command, "Boost") == 0)
 	{
-		// call button2 queue
+		Macros::BasicActions::QButton2(action_queue);
 	}
 	else if (strcasecmp(command, "Button3") == 0 || strcasecmp(command, "Button 3") == 0 || strcasecmp(command, "Handbrake") == 0 || strcasecmp(command, "Powerslide") == 0)
 	{
-		// call button3 queue
+		Macros::BasicActions::QButton3(action_queue);
 	}
 	else if (strcasecmp(command, "Button4") == 0 || strcasecmp(command, "Button 4") == 0 || strcasecmp(command, "Start button") == 0 || strcasecmp(command, "StartButton") == 0)
 	{
-		// call button4 queue
+		Macros::BasicActions::QButton4(action_queue);
 	}
 	else if (strcasecmp(command, "Button5") == 0 || strcasecmp(command, "Button 5") == 0 || strcasecmp(command, "End button") == 0 || strcasecmp(command, "EndButton") == 0)
 	{
-		// call button5 queue
+		Macros::BasicActions::QButton5(action_queue);
+	}
+	else if (strcasecmp(command, "X+") == 0 || strcasecmp(command, "Steer+") == 0 || strcasecmp(command, "Yaw+") == 0)
+	{
+		Macros::BasicActions::QPositiveX(action_queue);
+	}
+	else if (strcasecmp(command, "Y+") == 0 || strcasecmp(command, "Pitch+") == 0)
+	{
+		Macros::BasicActions::QPositiveY(action_queue);
+	}
+	else if (strcasecmp(command, "Z+") == 0 || strcasecmp(command, "Accel+") == 0 || strcasecmp(command, "Throttle+") == 0 || strcasecmp(command, "Accelerate+") == 0)
+	{
+		Macros::BasicActions::QPositiveZ(action_queue);
+	}
+	else if (strcasecmp(command, "R+") == 0 || strcasecmp(command, "Roll+") == 0 || strcasecmp(command, "Airroll+") == 0)
+	{
+		Macros::BasicActions::QPositiveR(action_queue);
+	}
+	else if (strcasecmp(command, "X-") == 0 || strcasecmp(command, "Steer-") == 0 || strcasecmp(command, "Yaw-") == 0)
+	{
+		Macros::BasicActions::QNegativeX(action_queue);
+	}
+	else if (strcasecmp(command, "Y-") == 0 || strcasecmp(command, "Pitch-") == 0)
+	{
+		Macros::BasicActions::QNegativeY(action_queue);
+	}
+	else if (strcasecmp(command, "Z-") == 0 || strcasecmp(command, "Accel-") == 0 || strcasecmp(command, "Throttle-") == 0 || strcasecmp(command, "Accelerate-") == 0)
+	{
+		Macros::BasicActions::QNegativeZ(action_queue);
+	}
+	else if (strcasecmp(command, "R-") == 0 || strcasecmp(command, "Roll-") == 0 || strcasecmp(command, "Airroll-") == 0)
+	{
+		Macros::BasicActions::QNegativeR(action_queue);
 	}
 	else if (strcasecmp(command, "fast aerial") == 0 || strcasecmp(command, "fastaerial") == 0)
 	{
@@ -528,7 +463,7 @@ void send_joystick_data()
 {
 	if (!time_queue.empty())
 	{
-		if (run_ms == time_queue.front())
+		if (run_ms >= time_queue.front())
 		{
 			Joystick.sendState();
 			time_queue.erase(time_queue.begin());
