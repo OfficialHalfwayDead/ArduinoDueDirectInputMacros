@@ -1,14 +1,15 @@
+#include "RealScenarios.h"
 #include <Joystick.h>
 #include <LiquidCrystal.h>
 #include <math.h>
 #include <DueTimer.h>
 #include <random>
+#include <Gaussian/Gaussian.h>
 #include "DataStructure.h"
 #include "BasicActions.h"
 
 
 LiquidCrystal lcd(6, 7, 8, 9, 10, 11);
-volatile byte task = 0b00000000;
 
 
 Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID, JOYSTICK_TYPE_GAMEPAD,
@@ -30,11 +31,12 @@ byte dots[8] = {
 	B00000,
 };
 
+volatile byte task = 0b00000000;
 
 const byte macro_start = 0b00000001;
 const byte macro_action = 0b00000010;
 const byte macro_running = 0b00000100;
-//const byte experiment_running = 0b00001000;
+//const byte loop_end = 0b00001000;
 //const byte experiment_start = 0b00010000;
 //const byte experiment_pause = 0b00100000;
 //const byte joystick_set = 0b01000000;
@@ -55,6 +57,11 @@ bool cursor_change = false;
 
 int queue_ms;
 int run_ms;
+
+Gaussian gauss;
+bool simulate_human = false;
+bool loop_macro = true;
+volatile bool end_loop = false;
 
 
 const byte numChars = 32;
@@ -87,6 +94,8 @@ void setup() {
 	SerialUSB.println("Ready...");
 
 	randomSeed(analogRead(1)); // don't connect this pin to anything to generate random noise
+	gauss = Gaussian(0.0, 15.0);
+
 	noInterrupts();
 	pinMode(buttonPin, INPUT);
 	attachInterrupt(digitalPinToInterrupt(buttonPin), button_pressed, RISING);
@@ -168,8 +177,25 @@ void check_if_done()
 		lcd.print(command);
 		lcd.setCursor(0, 1);
 		lcd.print(time_mod);
-		SerialUSB.print("Done with: ");
-		SerialUSB.println(command);
+		if (loop_macro)
+		{
+			if (end_loop)
+			{
+				SerialUSB.print("Done with: ");
+				SerialUSB.println(command);
+				end_loop = false; // for the next execution
+			}
+			else
+			{
+				task |= macro_start;
+			}
+		}
+		else
+		{
+			SerialUSB.print("Done with: ");
+			SerialUSB.println(command);
+		}
+
 		task ^= macro_running;
 	}
 	else if(cursor_change)
@@ -186,46 +212,85 @@ void button_pressed() {
 	if (!(task & (macro_running | macro_action | macro_start))) { // only start macro if nothing is going on
 		task |= macro_start;
 	}
+	else
+	{
+		end_loop = true;
+	}
 }
 
 
-void QFastAerial()
+void QFastAerial(std::vector<MacroAction> &queue)
 {
 	MacroAction firstJump(50);
 	firstJump.press(jump);
 	firstJump.move(pitch, -1.0f);
-	action_queue.push_back(firstJump);
+	queue.push_back(firstJump);
 	
 	MacroAction startBoost(92);
 	startBoost.press(boost);
 	//startBoost.move(accel, 1.0f); // unnecessary
-	action_queue.push_back(startBoost);
+	queue.push_back(startBoost);
 
 	MacroAction releaseJump(108);
 	releaseJump.release(jump);
-	action_queue.push_back(releaseJump);
+	queue.push_back(releaseJump);
 
 	MacroAction secondJump(9);
 	secondJump.move(pitch, -0.99f);
 	secondJump.press(jump);
-	action_queue.push_back(secondJump);
+	queue.push_back(secondJump);
 
 	MacroAction fullPitch(9);
 	fullPitch.move(pitch, -1.0f);
 	//fullPitch.release(jump); // unnecessary
-	action_queue.push_back(fullPitch);
+	queue.push_back(fullPitch);
 
 	MacroAction counterPitch(187);
 	counterPitch.move(pitch, 1.0f);
-	action_queue.push_back(counterPitch);
+	queue.push_back(counterPitch);
 
 	MacroAction releasePitch(355);
 	releasePitch.move(pitch, 0.0f);
-	action_queue.push_back(releasePitch);
+	queue.push_back(releasePitch);
 
 	MacroAction stopBoost(1400);
 	stopBoost.release(boost);
-	action_queue.push_back(stopBoost);
+	queue.push_back(stopBoost);
+
+}
+
+void QBoomer(std::vector<MacroAction> &queue)
+{
+	MacroAction setup(50);
+	setup.press(start_button);
+	//startBoost.move(accel, 1.0f); // unnecessary
+	queue.push_back(setup);
+
+	MacroAction startBoost(500);
+	startBoost.release(start_button);
+	startBoost.press(boost);
+	//startBoost.move(accel, 1.0f); // unnecessary
+	queue.push_back(startBoost);
+
+	MacroAction firstJump(658);
+	firstJump.press(jump);
+	firstJump.move(pitch, -1.0f);
+	queue.push_back(firstJump);
+
+	MacroAction releaseJump(125);
+	releaseJump.release(jump);
+	queue.push_back(releaseJump);
+
+	MacroAction dodge(217);
+	dodge.move(pitch, 1.0f);
+	dodge.press(jump);
+	queue.push_back(dodge);
+
+	MacroAction stopBoost(200);
+	stopBoost.release(boost);
+	stopBoost.release(jump);
+	stopBoost.move(pitch, 0.0f);
+	queue.push_back(stopBoost);
 
 }
 
@@ -252,6 +317,16 @@ void queue_actions()
 	else if (strcasecmp(time_mod, "DS4") == 0 || strcasecmp(time_mod, "wireless") == 0 || strcasecmp(time_mod, "DS4 wireless") == 0 || strcasecmp(time_mod, "DS4 Bluetooth") == 0)
 	{
 		time_mod_func = wireless_DS4;
+	}
+	else if (strcasecmp(time_mod, "ident") == 0 || strcasecmp(time_mod, "1000Hz") == 0 || strcasecmp(time_mod, "1000") == 0 || strcasecmp(time_mod, "1 ms") == 0 || strcasecmp(time_mod, "1ms") == 0 || strcasecmp(time_mod, "1") == 0)
+	{
+		time_mod_func = ident;
+	}
+	else
+	{
+		SerialUSB.println("Unknown time modifier: " + String(time_mod));
+		task ^= macro_start;
+		return;
 	}
 
 	if (strcasecmp(command, "Button1") == 0 || strcasecmp(command, "Button 1") == 0 || strcasecmp(command, "Jump") == 0)
@@ -308,7 +383,17 @@ void queue_actions()
 	}
 	else if (strcasecmp(command, "fast aerial") == 0 || strcasecmp(command, "fastaerial") == 0)
 	{
-		QFastAerial();
+		QFastAerial(action_queue);
+	}
+	else if (strcasecmp(command, "boomer") == 0 || strcasecmp(command, "shot") == 0)
+	{
+		QBoomer(action_queue);
+	}
+	else
+	{
+		SerialUSB.println("Unknown command: " + String(command));
+		task ^= macro_start;
+		return;
 	}
 
 
@@ -323,20 +408,40 @@ void queue_actions()
 	backToDefault.move('R', 0.0f);
 	action_queue.push_back(backToDefault);
 
-	queue_ms = 100 + random(40);
+	queue_ms = 100 + random(40); // to cause variation in how polling windows line up, sample from lowest common denominator of all polling rates
+	int prev_time = queue_ms;
 	for (auto it : action_queue)
 	{
 		queue_ms += it.get_delay();
-		time_queue.push_back(time_mod_func(queue_ms));
+		if (simulate_human)
+		{
+			int human_time = human(queue_ms);
+			if (human_time - prev_time <= 10) // safety net to not hit buttons in the same physics ticks because a human would likely never be pressing a button for that short
+			{
+				human_time = prev_time + 10;
+			}
+			queue_ms = human_time; // alternatively keep queue_ms and only pass human_time to queue
+			prev_time = human_time;
+			queue_ms = time_mod_func(queue_ms);
+			time_queue.push_back(queue_ms);
+		}
+		else
+		{
+			time_queue.push_back(time_mod_func(queue_ms));
+		}
+		//SerialUSB.println(time_queue.back());
+
 	}
 	run_ms = 0;
 
 	lcd.setCursor(15, 1);
 	cursor_change = true;
 	cursor = true;
-	SerialUSB.print("Running: ");
-	SerialUSB.println(command);
-
+	if (!loop_macro)
+	{
+		SerialUSB.print("Running: ");
+		SerialUSB.println(command);
+	}
 	Timer0.attachInterrupt(send_joystick_data).setPeriod(1000).start();
 	task |= macro_running;
 	task |= macro_action;
@@ -390,32 +495,38 @@ void set_next_state()
 	task ^= macro_action;
 }
 
+inline int human(int time)
+{
+	return time + ((int)round(gauss.random()));
+}
+
 inline int polling_rate_mod(int time, int window)
 {
 	if (time % window != 0)
 	{
 		return time + (window - (time % window));
 	}
+	return time;
 }
 
 int polling_10(int time)
 {
-	polling_rate_mod(time, 10);
+	return polling_rate_mod(time, 10);
 }
 
 int polling_8(int time)
 {
-	polling_rate_mod(time, 8);
+	return polling_rate_mod(time, 8);
 }
 
 int polling_4(int time)
 {
-	polling_rate_mod(time, 4);
+	return polling_rate_mod(time, 4);
 }
 
 int polling_2(int time)
 {
-	polling_rate_mod(time, 2);
+	return polling_rate_mod(time, 2);
 }
 
 int ident(int time)
