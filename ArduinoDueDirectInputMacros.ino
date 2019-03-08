@@ -4,7 +4,6 @@
 #include <math.h>
 #include <DueTimer.h>
 #include <random>
-#include <Gaussian/Gaussian.h>
 #include "DataStructure.h"
 #include "BasicActions.h"
 
@@ -58,8 +57,6 @@ bool cursor_change = false;
 int queue_ms;
 int run_ms;
 
-Gaussian gauss;
-bool simulate_human = false;
 bool loop_macro = true;
 volatile bool end_loop = false;
 
@@ -94,7 +91,6 @@ void setup() {
 	SerialUSB.println("Ready...");
 
 	randomSeed(analogRead(1)); // don't connect this pin to anything to generate random noise
-	gauss = Gaussian(0.0, 15.0);
 
 	noInterrupts();
 	pinMode(buttonPin, INPUT);
@@ -413,22 +409,7 @@ void queue_actions()
 	for (auto it : action_queue)
 	{
 		queue_ms += it.get_delay();
-		if (simulate_human)
-		{
-			int human_time = human(queue_ms);
-			if (human_time - prev_time <= 10) // safety net to not hit buttons in the same physics ticks because a human would likely never be pressing a button for that short
-			{
-				human_time = prev_time + 10;
-			}
-			queue_ms = human_time; // alternatively keep queue_ms and only pass human_time to queue
-			prev_time = human_time;
-			queue_ms = time_mod_func(queue_ms);
-			time_queue.push_back(queue_ms);
-		}
-		else
-		{
-			time_queue.push_back(time_mod_func(queue_ms));
-		}
+		time_queue.push_back(time_mod_func(queue_ms));
 		//SerialUSB.println(time_queue.back());
 
 	}
@@ -495,10 +476,6 @@ void set_next_state()
 	task ^= macro_action;
 }
 
-inline int human(int time)
-{
-	return time + ((int)round(gauss.random()));
-}
 
 inline int polling_rate_mod(int time, int window)
 {
