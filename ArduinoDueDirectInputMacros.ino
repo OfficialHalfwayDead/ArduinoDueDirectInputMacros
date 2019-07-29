@@ -290,6 +290,45 @@ void QBoomer(std::vector<MacroAction> &queue)
 
 }
 
+void QFlipcancel(std::vector<MacroAction> &queue)
+{
+	MacroAction setup(50);
+	setup.press(start_button);
+	//startBoost.move(accel, 1.0f); // unnecessary
+	queue.push_back(setup);
+
+	MacroAction startBoost(500);
+	startBoost.release(start_button);
+	startBoost.press(boost);
+	//startBoost.move(accel, 1.0f); // unnecessary
+	queue.push_back(startBoost);
+
+	MacroAction firstJump(658);
+	firstJump.press(jump);
+	firstJump.move(pitch, -1.0f);
+	queue.push_back(firstJump);
+
+	MacroAction releaseJump(125);
+	releaseJump.release(jump);
+	queue.push_back(releaseJump);
+
+	MacroAction dodge(17);
+	dodge.move(pitch, 1.0f);
+	dodge.press(jump);
+	queue.push_back(dodge);
+
+	MacroAction cancel(650);
+	cancel.move(pitch, -1.0f);
+	queue.push_back(cancel);
+
+	MacroAction stopBoost(200);
+	stopBoost.release(boost);
+	stopBoost.release(jump);
+	stopBoost.move(pitch, 0.0f);
+	queue.push_back(stopBoost);
+
+}
+
 void queue_actions()
 {
 	int(*time_mod_func)(int);
@@ -382,6 +421,10 @@ void queue_actions()
 		QFastAerial(action_queue);
 	}
 	else if (strcasecmp(command, "boomer") == 0 || strcasecmp(command, "shot") == 0)
+	{
+		QBoomer(action_queue);
+	}
+	else if (strcasecmp(command, "flipcancel") == 0 || strcasecmp(command, "cancel") == 0)
 	{
 		QBoomer(action_queue);
 	}
