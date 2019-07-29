@@ -426,7 +426,7 @@ void queue_actions()
 	}
 	else if (strcasecmp(command, "flipcancel") == 0 || strcasecmp(command, "cancel") == 0)
 	{
-		QBoomer(action_queue);
+		QFlipcancel(action_queue);
 	}
 	else
 	{
